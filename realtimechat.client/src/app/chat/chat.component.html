@@ -1,0 +1,7 @@
+<h2>Real-Time Text Stream</h2>
+<button (click)="startStreaming()">Start Streaming</button>
+<ul>
+  @for (text of textStream; track text) {
+  <li>{{ text }}</li>
+  }
+</ul>
