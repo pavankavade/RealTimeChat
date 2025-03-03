@@ -1,24 +1,26 @@
-﻿using Microsoft.AspNetCore.SignalR;
-using System.Threading;
-using System.Threading.Channels;
+﻿// StreamingHub.cs
+using Microsoft.AspNetCore.SignalR;
 using System.Threading.Tasks;
 
 public class StreamingHub : Hub
 {
-    public ChannelReader<string> StreamText(CancellationToken cancellationToken)
+    private readonly IAzureOpenAIService _azureOpenAIService;
+
+    public StreamingHub(IAzureOpenAIService azureOpenAIService)
     {
-        var channel = Channel.CreateUnbounded<string>();
+        _azureOpenAIService = azureOpenAIService;
+    }
 
-        _ = Task.Run(async () =>
+    // StreamingHub.cs
+    public async Task SendMessage(string user, string message)
+    {
+        // Send original message to all clients immediately, indicating it's a user message
+        await Clients.All.SendAsync("ReceiveMessage", user, message, "user");  // Add "user" type
+
+        // Stream AI response, indicating it's a system message
+        await _azureOpenAIService.StreamChatResponseAsync(message, async (chunk) =>
         {
-            while (!cancellationToken.IsCancellationRequested)
-            {
-                await channel.Writer.WriteAsync("Dummy text " + DateTime.Now.ToString(), cancellationToken);
-                await Task.Delay(1000, cancellationToken); // Stream every 1 second
-            }
-            channel.Writer.Complete();
+            await Clients.All.SendAsync("ReceiveMessage", "System", chunk, "system"); // Add "system" type
         });
-
-        return channel.Reader;
     }
 }

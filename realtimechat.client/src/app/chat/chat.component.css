@@ -1,0 +1,67 @@
+/* chat.component.css */
+.chat-container {
+  max-width: 800px;
+  margin: 20px auto;
+  padding: 20px;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+}
+
+.chat-connection {
+  margin-bottom: 15px;
+}
+
+.status {
+  margin-left: 10px;
+  padding: 2px 8px;
+  border-radius: 3px;
+}
+
+  .status.connected {
+    background-color: #90ee90;
+  }
+
+  .status.disconnected {
+    background-color: #ffcccb;
+  }
+
+.messages-container {
+  height: 400px;
+  overflow-y: auto;
+  border: 1px solid #eee;
+  padding: 10px;
+  margin-bottom: 15px;
+}
+
+.message {
+  padding: 5px 0;
+}
+
+.timestamp {
+  color: #666;
+  margin-right: 5px;
+}
+
+.user {
+  font-weight: bold;
+  color: #2c3e50;
+  margin-right: 5px;
+}
+
+.message-text {
+  word-break: break-word;
+}
+
+.input-container {
+  display: flex;
+  gap: 10px;
+}
+
+input {
+  flex: 1;
+  padding: 5px;
+}
+
+button {
+  padding: 5px 15px;
+}

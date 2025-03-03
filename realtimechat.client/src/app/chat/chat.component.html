@@ -1,7 +1,34 @@
-<h2>Real-Time Text Stream</h2>
-<button (click)="startStreaming()">Start Streaming</button>
-<ul>
-  @for (text of textStream; track text) {
-  <li>{{ text }}</li>
-  }
-</ul>
+<!-- chat.component.html -->
+<div class="chat-container">
+  <h2>Real-Time Chat</h2>
+
+  <div class="chat-connection">
+    <button (click)="connect()" [disabled]="hubConnection?.state === 'Connected'">
+      Connect to Chat
+    </button>
+    <span class="status"
+          [class.connected]="hubConnection?.state === 'Connected'"
+          [class.disconnected]="hubConnection?.state === 'Disconnected'">
+      Status: {{ hubConnection?.state || 'Disconnected' }}
+    </span>
+  </div>
+
+  <div class="messages-container">
+    <div class="message" *ngFor="let msg of messages">
+      <span class="timestamp">[{{ msg.timestamp }}]</span>
+      <span class="user">{{ msg.user }}:</span>
+      <span class="message-text">{{ msg.message }}</span>
+    </div>
+  </div>
+
+  <div class="input-container">
+    <input [(ngModel)]="newMessage"
+           (keyup.enter)="sendMessage()"
+           placeholder="Type a message..."
+           [disabled]="hubConnection?.state !== 'Connected'">
+    <button (click)="sendMessage()"
+            [disabled]="!newMessage.trim() || hubConnection?.state !== 'Connected'">
+      Send
+    </button>
+  </div>
+</div>
