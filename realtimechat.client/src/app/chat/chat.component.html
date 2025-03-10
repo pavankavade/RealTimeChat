@@ -6,11 +6,13 @@
     <button (click)="connect()" [disabled]="hubConnection?.state === 'Connected'">
       Connect to Chat
     </button>
-    <span class="status"
-          [class.connected]="hubConnection?.state === 'Connected'"
-          [class.disconnected]="hubConnection?.state === 'Disconnected'">
+    <span class="status" [ngClass]="{ connected: hubConnection?.state === 'Connected', disconnected: hubConnection?.state !== 'Connected' }">
       Status: {{ hubConnection?.state || 'Disconnected' }}
     </span>
+    <!-- Mic toggle button. Disable if not connected. -->
+    <button (click)="toggleMic()" [disabled]="hubConnection?.state !== 'Connected'" class="mic-button">
+      <i class="material-icons">{{ micEnabled ? 'mic_off' : 'mic' }}</i>
+    </button>
   </div>
 
   <div class="messages-container">

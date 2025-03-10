@@ -1,5 +1,7 @@
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
+using RealTimeChat.Services;
+using RealTimeChat.Hubs;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -7,7 +9,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
-builder.Services.AddScoped<IAzureOpenAIService, AzureOpenAIService>();
+builder.Services.AddScoped<IAzureOpenAIRealtimeService, AzureOpenAIRealtimeService>();
 builder.Services.AddSignalR();
 builder.Services.AddHttpClient();
 

@@ -1,26 +1,76 @@
 ﻿// StreamingHub.cs
 using Microsoft.AspNetCore.SignalR;
+using RealTimeChat.Services;
+using System;
+using System.Collections.Concurrent;
+using System.Threading;
 using System.Threading.Tasks;
 
-public class StreamingHub : Hub
+namespace RealTimeChat.Hubs
 {
-    private readonly IAzureOpenAIService _azureOpenAIService;
-
-    public StreamingHub(IAzureOpenAIService azureOpenAIService)
+    public class StreamingHub : Hub
     {
-        _azureOpenAIService = azureOpenAIService;
-    }
+        private readonly IAzureOpenAIRealtimeService _azureRealtimeService;
 
-    // StreamingHub.cs
-    public async Task SendMessage(string user, string message)
-    {
-        // Send original message to all clients immediately, indicating it's a user message
-        await Clients.All.SendAsync("ReceiveMessage", user, message, "user");  // Add "user" type
+        // Dictionary to keep track of mic streams (one per connection)
+        private static readonly ConcurrentDictionary<string, CancellationTokenSource> _micTokenSources = new();
 
-        // Stream AI response, indicating it's a system message
-        await _azureOpenAIService.StreamChatResponseAsync(message, async (chunk) =>
+        public StreamingHub(IAzureOpenAIRealtimeService azureRealtimeService)
         {
-            await Clients.All.SendAsync("ReceiveMessage", "System", chunk, "system"); // Add "system" type
-        });
+            _azureRealtimeService = azureRealtimeService;
+        }
+
+        // Method for user sending a regular text message
+        public async Task SendMessage(string user, string message)
+        {
+            try
+            {
+                await Clients.All.SendAsync("ReceiveMessage", user, message, "user");
+            }
+            catch (Exception ex)
+            {
+                // Log or handle exception as needed
+                await Clients.Caller.SendAsync("ReceiveMessage", "System", $"[Error: {ex.Message}]", "system-error");
+            }
+        }
+
+        // Called from the client when the mic is enabled
+        public async Task StartMic()
+        {
+            if (_micTokenSources.ContainsKey(Context.ConnectionId))
+            {
+                // Already started – nothing to do.
+                return;
+            }
+
+            var cts = new CancellationTokenSource();
+            _micTokenSources[Context.ConnectionId] = cts;
+
+            // Inform the client that the mic is now enabled.
+            await Clients.Caller.SendAsync("MicStatus", true);
+
+            try
+            {
+                // Call the realtime API via WebSocket. Stream each delta chunk to ONLY the caller.
+                await _azureRealtimeService.StreamRealtimeResponseAsync(async (chunk, chunkType) =>
+                {
+                    await Clients.Caller.SendAsync("ReceiveMessage", "System", chunk, chunkType);
+                }, cts.Token);
+            }
+            catch (Exception ex)
+            {
+                await Clients.Caller.SendAsync("ReceiveMessage", "System", $"[Error: {ex.Message}]", "system-error");
+            }
+        }
+
+        // Called from the client when the mic is muted
+        public async Task StopMic()
+        {
+            if (_micTokenSources.TryRemove(Context.ConnectionId, out var cts))
+            {
+                cts.Cancel();
+                await Clients.Caller.SendAsync("MicStatus", false);
+            }
+        }
     }
 }
