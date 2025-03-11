@@ -11,23 +11,11 @@ using Microsoft.Extensions.Configuration;
 
 namespace RealTimeChat.Services
 {
-    /// <summary>
-    /// Interface defining the contract for real-time interaction with Azure OpenAI via WebSocket.
-    /// </summary>
     public interface IAzureOpenAIRealtimeService
     {
-        /// <summary>
-        /// Connects to the realtime API using a WebSocket and streams responses.
-        /// </summary>
-        /// <param name="onChunkReceived">Callback for every chunk received with content and its type</param>
-        /// <param name="audioQueue">Queue containing audio chunks to be sent to the server</param>
-        /// <param name="cancellationToken">Allows cancellation (stop streaming)</param>
         Task StreamRealtimeResponseAsync(Func<string, string, Task> onChunkReceived, ConcurrentQueue<string> audioQueue, CancellationToken cancellationToken);
     }
 
-    /// <summary>
-    /// Service for streaming real-time responses from Azure OpenAI using WebSockets.
-    /// </summary>
     public class AzureOpenAIRealtimeService : IAzureOpenAIRealtimeService
     {
         private readonly string _endpoint;
@@ -35,11 +23,6 @@ namespace RealTimeChat.Services
         private readonly string _apiKey;
         private readonly string _apiVersion;
 
-        /// <summary>
-        /// Initializes a new instance of the AzureOpenAIRealtimeService with configuration settings.
-        /// </summary>
-        /// <param name="configuration">Configuration containing Azure OpenAI settings</param>
-        /// <exception cref="ArgumentException">Thrown if configuration is incomplete</exception>
         public AzureOpenAIRealtimeService(IConfiguration configuration)
         {
             _endpoint = configuration["AzureOpenAI:Endpoint"];
@@ -56,12 +39,6 @@ namespace RealTimeChat.Services
             }
         }
 
-        /// <summary>
-        /// Streams real-time responses from Azure OpenAI over a WebSocket connection.
-        /// </summary>
-        /// <param name="onChunkReceived">Callback invoked for each received chunk</param>
-        /// <param name="audioQueue">Queue of audio chunks to send to the server</param>
-        /// <param name="cancellationToken">Token to cancel the operation</param>
         public async Task StreamRealtimeResponseAsync(Func<string, string, Task> onChunkReceived, ConcurrentQueue<string> audioQueue, CancellationToken cancellationToken)
         {
             var uri = $"{_endpoint}/openai/realtime?api-version={_apiVersion}&deployment={_deployment}";
@@ -75,7 +52,6 @@ namespace RealTimeChat.Services
                 await ws.ConnectAsync(new Uri(uri), cancellationToken);
                 Console.WriteLine("Connected.");
 
-                // Receive session.created
                 var buffer = new byte[4096];
                 var result = await ws.ReceiveAsync(new ArraySegment<byte>(buffer), cancellationToken);
                 var message = Encoding.UTF8.GetString(buffer, 0, result.Count);
@@ -85,7 +61,6 @@ namespace RealTimeChat.Services
                     return;
                 }
 
-                // Send session.update with audio configuration
                 var sessionUpdate = new
                 {
                     type = "session.update",
@@ -94,7 +69,7 @@ namespace RealTimeChat.Services
                         voice = "alloy",
                         instructions = "Assist the user with speech-to-speech interaction.",
                         input_audio_format = "pcm16",
-                        output_audio_format = "pcm16", // Added for output audio
+                        output_audio_format = "pcm16",
                         input_audio_transcription = new { model = "whisper-1" },
                         turn_detection = new
                         {
@@ -111,7 +86,6 @@ namespace RealTimeChat.Services
                 var bytesToSend = Encoding.UTF8.GetBytes(sessionUpdateJson);
                 await ws.SendAsync(new ArraySegment<byte>(bytesToSend), WebSocketMessageType.Text, true, cancellationToken);
 
-                // Send response.create to initiate interaction
                 var responseCreate = new
                 {
                     type = "response.create",
@@ -125,7 +99,6 @@ namespace RealTimeChat.Services
                 bytesToSend = Encoding.UTF8.GetBytes(responseCreateJson);
                 await ws.SendAsync(new ArraySegment<byte>(bytesToSend), WebSocketMessageType.Text, true, cancellationToken);
 
-                // Audio sending task
                 var sendTask = Task.Run(async () =>
                 {
                     while (!cancellationToken.IsCancellationRequested && ws.State == WebSocketState.Open)
@@ -144,7 +117,8 @@ namespace RealTimeChat.Services
                     }
                 }, cancellationToken);
 
-                // Updated receive loop to handle fragmented messages
+                var textBuffer = new StringBuilder(); // Buffer for text chunks
+
                 while (ws.State == WebSocketState.Open && !cancellationToken.IsCancellationRequested)
                 {
                     var messageBuilder = new StringBuilder();
@@ -155,8 +129,8 @@ namespace RealTimeChat.Services
                         if (receiveResult.MessageType == WebSocketMessageType.Close)
                         {
                             await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "Closing", cancellationToken);
-                            await onChunkReceived($"[Connection Closed]", "system-info");
-                            return; // Exit the method since the connection is closed
+                            await onChunkReceived("[Connection Closed]", "system-info");
+                            return;
                         }
                         messageBuilder.Append(Encoding.UTF8.GetString(buffer, 0, receiveResult.Count));
                     } while (!receiveResult.EndOfMessage);
@@ -182,15 +156,22 @@ namespace RealTimeChat.Services
                                 {
                                     var textContent = transcriptElement.GetString();
                                     if (!string.IsNullOrEmpty(textContent))
-                                        await onChunkReceived(textContent, "system-text");
+                                        textBuffer.Append(textContent + " ");
+                                    await onChunkReceived(textContent, "system-text-delta"); // Send delta for buffering
                                 }
+                                break;
+                            case "response.done":
+                                if (textBuffer.Length > 0)
+                                {
+                                    var fullMessage = textBuffer.ToString().Trim();
+                                    await onChunkReceived(fullMessage, "system-text-complete");
+                                    textBuffer.Clear(); // Reset buffer
+                                }
+                                Console.WriteLine("Response completed.");
                                 break;
                             case "error":
                                 if (root.TryGetProperty("message", out var errorMsg))
                                     await onChunkReceived($"[Server Error: {errorMsg.GetString()}]", "system-error");
-                                break;
-                            case "response.done":
-                                Console.WriteLine("Response completed.");
                                 break;
                         }
                     }
