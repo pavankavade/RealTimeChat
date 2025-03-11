@@ -11,6 +11,7 @@ namespace RealTimeChat.Hubs
     public class StreamingHub : Hub
     {
         private readonly IAzureOpenAIRealtimeService _azureRealtimeService;
+        private static readonly ConcurrentDictionary<string, ConcurrentQueue<string>> _audioQueues = new();
 
         // Dictionary to keep track of mic streams (one per connection)
         private static readonly ConcurrentDictionary<string, CancellationTokenSource> _micTokenSources = new();
@@ -34,28 +35,24 @@ namespace RealTimeChat.Hubs
             }
         }
 
-        // Called from the client when the mic is enabled
         public async Task StartMic()
         {
-            if (_micTokenSources.ContainsKey(Context.ConnectionId))
-            {
-                // Already started – nothing to do.
-                return;
-            }
+            if (_micTokenSources.ContainsKey(Context.ConnectionId)) return;
 
             var cts = new CancellationTokenSource();
             _micTokenSources[Context.ConnectionId] = cts;
+            var audioQueue = new ConcurrentQueue<string>();
+            _audioQueues[Context.ConnectionId] = audioQueue;
 
-            // Inform the client that the mic is now enabled.
             await Clients.Caller.SendAsync("MicStatus", true);
 
             try
             {
-                // Call the realtime API via WebSocket. Stream each delta chunk to ONLY the caller.
-                await _azureRealtimeService.StreamRealtimeResponseAsync(async (chunk, chunkType) =>
-                {
-                    await Clients.Caller.SendAsync("ReceiveMessage", "System", chunk, chunkType);
-                }, cts.Token);
+                await _azureRealtimeService.StreamRealtimeResponseAsync(
+                  async (chunk, chunkType) => await Clients.Caller.SendAsync("ReceiveMessage", "System", chunk, chunkType),
+                  audioQueue,
+                  cts.Token
+                );
             }
             catch (Exception ex)
             {
@@ -63,12 +60,20 @@ namespace RealTimeChat.Hubs
             }
         }
 
-        // Called from the client when the mic is muted
+        public async Task SendAudioChunk(string audioChunk)
+        {
+            if (_audioQueues.TryGetValue(Context.ConnectionId, out var audioQueue))
+            {
+                audioQueue.Enqueue(audioChunk);
+            }
+        }
+
         public async Task StopMic()
         {
             if (_micTokenSources.TryRemove(Context.ConnectionId, out var cts))
             {
                 cts.Cancel();
+                _audioQueues.TryRemove(Context.ConnectionId, out _);
                 await Clients.Caller.SendAsync("MicStatus", false);
             }
         }

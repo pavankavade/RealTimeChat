@@ -1,4 +1,3 @@
-// chat.component.ts
 import { Component, OnInit, OnDestroy } from '@angular/core';
 import { HubConnection, HubConnectionBuilder } from '@microsoft/signalr';
 
@@ -8,131 +7,175 @@ import { HubConnection, HubConnectionBuilder } from '@microsoft/signalr';
   styleUrls: ['./chat.component.css']
 })
 export class ChatComponent implements OnInit, OnDestroy {
-  public hubConnection!: HubConnection;
-  messages: { user: string; message: string; timestamp: string; type: string }[] = [];
-  newMessage: string = '';
-  userName: string = 'User_' + Math.floor(Math.random() * 1000);
-  micEnabled: boolean = false;
+  hubConnection!: HubConnection;
+  messages: { user: string; message: string; timestamp: string }[] = [];
+  newMessage = '';
+  micEnabled = false;
+
   private audioContext!: AudioContext;
+  private micStream!: MediaStream;
+  private micSource!: MediaStreamAudioSourceNode;
+  private micProcessor!: ScriptProcessorNode;
+  private playbackProcessor!: ScriptProcessorNode;
+  private audioBufferQueue: Float32Array[] = [];
 
   constructor() {
-    this.hubConnection = new HubConnectionBuilder()
-      // Set your SignalR hub URL (adjust port and path as needed)
-      .withUrl('https://localhost:7158/chatstream')
-      .build();
-
-    // Listen for incoming messages from the hub.
-    this.hubConnection.on('ReceiveMessage', (user: string, message: string, type: string) => {
-      this.handleIncomingMessage(user, message, type);
-    });
-
-    // Listen for mic status updates
-    this.hubConnection.on('MicStatus', (status: boolean) => {
-      this.micEnabled = status;
-    });
+    // Initialize properties if needed
   }
 
   ngOnInit(): void {
-    // Create an AudioContext for streaming audio playback.
-    this.audioContext = new AudioContext();
+    this.audioContext = new AudioContext({ sampleRate: 24000 });
+    this.setupPlayback();
     this.connect();
   }
 
   ngOnDestroy(): void {
-    this.hubConnection.stop();
-    if (this.audioContext) {
-      this.audioContext.close();
-    }
+    this.cleanupResources();
   }
 
-  async connect(): Promise<void> {
-    try {
-      await this.hubConnection.start();
-      console.log('Connected to SignalR hub.');
-    } catch (error) {
-      console.error('Error connecting to SignalR hub:', error);
-    }
+  /** Establishes connection to SignalR hub */
+  connect(): void {
+    this.hubConnection = new HubConnectionBuilder()
+      .withUrl('https://localhost:7158/chatstream')
+      .build();
+
+    this.hubConnection.on('ReceiveMessage', (user: string, message: string, type: string) => {
+      if (type === 'system-text') {
+        this.messages.push({ user, message, timestamp: new Date().toLocaleTimeString() });
+      } else if (type === 'system-audio') {
+        this.handleAudioChunk(message);
+      } else if (type === 'system-error') {
+        this.messages.push({ user, message, timestamp: new Date().toLocaleTimeString() });
+      }
+    });
+
+    this.hubConnection.start()
+      .then(() => console.log('Connected to SignalR hub'))
+      .catch(err => console.error('Error connecting:', err));
   }
 
+  /** Sends a text message via SignalR */
   async sendMessage(): Promise<void> {
-    if (this.newMessage.trim() && this.hubConnection?.state === 'Connected') {
-      await this.hubConnection.invoke('SendMessage', this.userName, this.newMessage);
+    if (this.newMessage.trim() && this.hubConnection.state === 'Connected') {
+      await this.hubConnection.invoke('SendMessage', 'User', this.newMessage);
       this.newMessage = '';
     }
   }
 
-  // Toggle mic status (enable/disable)
+  /** Toggles microphone on/off */
   async toggleMic(): Promise<void> {
-    if (!this.micEnabled) {
-      // Turn mic on
-      await this.hubConnection.invoke('StartMic');
-    } else {
-      // Turn mic off
+    if (this.micEnabled) {
       await this.hubConnection.invoke('StopMic');
+      this.stopCapturing();
+      this.micEnabled = false;
+    } else {
+      await this.hubConnection.invoke('StartMic');
+      await this.startCapturing();
+      this.micEnabled = true;
     }
   }
 
-  // Handle incoming messages. For text, update chat view;
-  // for audio, decode and play it.
-  handleIncomingMessage(user: string, message: string, type: string): void {
-    if (type === 'system-text') {
-      // Append the text delta to the chat view.
-      const lastIndex = this.messages.length - 1;
-      if (
-        lastIndex >= 0 &&
-        this.messages[lastIndex].user === 'System' &&
-        this.messages[lastIndex].type === 'system-text'
-      ) {
-        this.messages[lastIndex].message += message;
-        this.messages[lastIndex].timestamp = new Date().toLocaleTimeString();
-      } else {
-        this.messages.push({
-          user: 'System',
-          message,
-          timestamp: new Date().toLocaleTimeString(),
-          type: 'system-text'
-        });
-      }
-    } else if (type === 'system-audio') {
-      // For audio chunks, decode and play immediately.
-      this.playAudioChunk(message);
-    } else {
-      // Handle regular messages.
+  /** Starts capturing audio from the microphone */
+  private async startCapturing(): Promise<void> {
+    try {
+      this.micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      this.micSource = this.audioContext.createMediaStreamSource(this.micStream);
+      this.micProcessor = this.audioContext.createScriptProcessor(4096, 1, 1);
+
+      this.micProcessor.addEventListener('audioprocess', (event) => {
+        const inputBuffer = event.inputBuffer.getChannelData(0); // Float32Array
+        const pcmData = new Int16Array(inputBuffer.length);
+        for (let i = 0; i < inputBuffer.length; i++) {
+          const s = Math.max(-1, Math.min(1, inputBuffer[i]));
+          pcmData[i] = s < 0 ? s * 0x8000 : s * 0x7FFF; // Convert to 16-bit PCM
+        }
+        const base64Audio = this.arrayBufferToBase64(pcmData.buffer);
+        this.hubConnection.invoke('SendAudioChunk', base64Audio)
+          .catch(err => console.error('Error sending audio:', err));
+      });
+
+      this.micSource.connect(this.micProcessor);
+      this.micProcessor.connect(this.audioContext.destination); // Activates processing
+    } catch (error) {
+      console.error('Error starting mic:', error);
       this.messages.push({
-        user,
-        message,
-        timestamp: new Date().toLocaleTimeString(),
-        type
+        user: 'System',
+        message: `[Error: ${(error as Error).message}]`,
+        timestamp: new Date().toLocaleTimeString()
       });
     }
   }
 
-  // Converts a Base64 encoded string to an ArrayBuffer.
-  base64ToArrayBuffer(base64: string): ArrayBuffer {
-    const binaryString = window.atob(base64);
-    const len = binaryString.length;
-    const bytes = new Uint8Array(len);
-    for (let i = 0; i < len; i++) {
-      bytes[i] = binaryString.charCodeAt(i);
+  /** Stops audio capture and cleans up related resources */
+  private stopCapturing(): void {
+    if (this.micProcessor) {
+      this.micProcessor.disconnect();
     }
-    return bytes.buffer;
+    if (this.micSource) {
+      this.micSource.disconnect();
+    }
+    if (this.micStream) {
+      this.micStream.getTracks().forEach(track => track.stop());
+    }
   }
 
-  // Decode and play a received audio chunk.
-  playAudioChunk(base64Audio: string): void {
-    const arrayBuffer = this.base64ToArrayBuffer(base64Audio);
-    if (!arrayBuffer) {
-      console.error('Failed to convert Base64 audio chunk to ArrayBuffer.');
-      return;
-    }
-    // Decode the audio data and play it immediately.
-    this.audioContext.decodeAudioData(arrayBuffer).then(decodedData => {
-      const source = this.audioContext.createBufferSource();
-      source.buffer = decodedData;
-      source.connect(this.audioContext.destination);
-      source.start(0);
-    }).catch(error => {
-      console.error('Error decoding audio data', error);
+  /** Sets up audio playback processor */
+  private setupPlayback(): void {
+    this.playbackProcessor = this.audioContext.createScriptProcessor(4096, 0, 1);
+    this.playbackProcessor.addEventListener('audioprocess', (event) => {
+      const outputBuffer = event.outputBuffer.getChannelData(0);
+      if (this.audioBufferQueue.length > 0) {
+        const nextChunk = this.audioBufferQueue.shift()!;
+        const length = Math.min(outputBuffer.length, nextChunk.length);
+        outputBuffer.set(nextChunk.slice(0, length), 0);
+        if (length < nextChunk.length) {
+          this.audioBufferQueue.unshift(nextChunk.slice(length));
+        }
+      } else {
+        outputBuffer.fill(0); // Silence when no data
+      }
     });
+    this.playbackProcessor.connect(this.audioContext.destination);
+  }
+
+  /** Handles incoming audio chunks from SignalR */
+  private handleAudioChunk(base64Audio: string): void {
+    const byteCharacters = atob(base64Audio);
+    const byteNumbers = new Uint8Array(byteCharacters.length);
+    for (let i = 0; i < byteCharacters.length; i++) {
+      byteNumbers[i] = byteCharacters.charCodeAt(i);
+    }
+    const int16Array = new Int16Array(byteNumbers.buffer);
+    const float32Array = new Float32Array(int16Array.length);
+    for (let i = 0; i < int16Array.length; i++) {
+      float32Array[i] = int16Array[i] / 32768.0; // Convert back to Float32
+    }
+    this.audioBufferQueue.push(float32Array);
+  }
+
+  /** Converts ArrayBuffer to base64 string */
+  private arrayBufferToBase64(buffer: ArrayBuffer): string {
+    const bytes = new Uint8Array(buffer);
+    let binary = '';
+    for (let i = 0; i < bytes.byteLength; i++) {
+      binary += String.fromCharCode(bytes[i]);
+    }
+    return btoa(binary);
+  }
+
+  /** Cleans up all audio resources on component destruction */
+  private cleanupResources(): void {
+    if (this.micEnabled) {
+      this.stopCapturing();
+    }
+    if (this.playbackProcessor) {
+      this.playbackProcessor.disconnect();
+    }
+    if (this.audioContext) {
+      this.audioContext.close().catch(err => console.error('Error closing AudioContext:', err));
+    }
+    if (this.hubConnection) {
+      this.hubConnection.stop().catch(err => console.error('Error stopping hub:', err));
+    }
   }
 }
