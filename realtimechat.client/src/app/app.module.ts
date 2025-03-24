@@ -6,12 +6,14 @@ import { AppRoutingModule } from './app-routing.module';
 import { AppComponent } from './app.component';
 import { ChatComponent } from './chat/chat.component';
 import { AvatarComponent } from './avatar/avatar.component';
+import { AvatarRealtimeComponent } from './avatar-realtime/avatar-realtime.component';
 
 @NgModule({
   declarations: [
     AppComponent,
     ChatComponent,
-    AvatarComponent
+    AvatarComponent,
+    AvatarRealtimeComponent
   ],
   imports: [
     BrowserModule, HttpClientModule,

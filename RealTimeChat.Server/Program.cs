@@ -45,6 +45,8 @@ app.UseAuthorization();
 
 app.MapControllers();
 app.MapHub<StreamingHub>("/chatstream");
+app.MapHub<ChatHub>("/chathub");
+
 app.MapFallbackToFile("/index.html");
 
 app.Run();
