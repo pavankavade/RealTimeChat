@@ -15,11 +15,11 @@ builder.Services.AddHttpClient();
 
 builder.Services.AddCors(options =>
 {
-options.AddPolicy("CorsPolicy",
-    builder => builder.WithOrigins("https://localhost:4200")
-                      .AllowAnyMethod()
-                      .AllowAnyHeader()
-                      .AllowCredentials());
+    options.AddPolicy("CorsPolicy", builder =>
+        builder.WithOrigins("https://localhost:4200")
+               .AllowAnyMethod()
+               .AllowAnyHeader()
+               .AllowCredentials());
 });
 
 var app = builder.Build();
@@ -31,14 +31,20 @@ if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
+    // Optionally disable HTTPS redirection in development
+    // app.UseHttpsRedirection(); // Comment out or remove this line
+}
+else
+{
+    app.UseHttpsRedirection(); // Keep for production if using HTTPS
 }
 
-app.UseHttpsRedirection();
+// Apply CORS before routing
 app.UseCors("CorsPolicy");
 app.UseAuthorization();
 
 app.MapControllers();
-app.MapHub<StreamingHub>("/chatstream"); // Updated to match client URL
+app.MapHub<StreamingHub>("/chatstream");
 app.MapFallbackToFile("/index.html");
 
 app.Run();

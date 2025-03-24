@@ -7,4 +7,10 @@
     <!-- Folder where production build objects will be placed -->
     <BuildOutputFolder>$(MSBuildProjectDirectory)\dist\realtimechat.client\browser\</BuildOutputFolder>
   </PropertyGroup>
+  <ItemGroup>
+    <Folder Include="public\assets\" />
+    <Folder Include="src\app\services\" />
+    <Folder Include="src\environments\" />
+    <Folder Include="src\types\" />
+  </ItemGroup>
 </Project>

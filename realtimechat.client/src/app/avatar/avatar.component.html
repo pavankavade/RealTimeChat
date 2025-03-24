@@ -1,0 +1,36 @@
+<div class="chatbot-container">
+  <div class="chatbox">
+    <div class="messages" #messagesContainer>
+      <div *ngFor="let msg of messages; let i = index" [class]="['message', msg.sender]">
+        <p>{{ msg.text }}</p>
+        <span class="timestamp">{{ msg.time }}</span>
+      </div>
+    </div>
+    <form (ngSubmit)="sendMessage()" class="input-form">
+      <input type="text"
+             [(ngModel)]="userInput"
+             name="userInput"
+             placeholder="Type your message..."
+             required
+             [disabled]="isLoading" />
+      <button type="submit" [disabled]="isLoading">Send</button>
+    </form>
+    <div *ngIf="isLoading" class="loading-spinner">
+      <span>Loading...</span>
+    </div>
+    <div *ngIf="errorMessage" class="error-message">
+      {{ errorMessage }}
+    </div>
+  </div>
+  <div class="placeholder-image">
+    <img src="assets/real_man.jpeg" alt="Placeholder Image" />
+    <img *ngIf="currentVisemeImage"
+         [src]="currentVisemeImage"
+         alt="Viseme Image"
+         class="viseme-image" />
+    <img *ngIf="!currentVisemeImage"
+         src="assets/19.svg"
+         alt="Default Viseme Image"
+         class="viseme-image" />
+  </div>
+</div>

@@ -5,11 +5,13 @@ import { FormsModule } from '@angular/forms'; // Add this
 import { AppRoutingModule } from './app-routing.module';
 import { AppComponent } from './app.component';
 import { ChatComponent } from './chat/chat.component';
+import { AvatarComponent } from './avatar/avatar.component';
 
 @NgModule({
   declarations: [
     AppComponent,
-    ChatComponent
+    ChatComponent,
+    AvatarComponent
   ],
   imports: [
     BrowserModule, HttpClientModule,

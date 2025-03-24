@@ -23,6 +23,7 @@
     "@angular/router": "^18.0.0",
     "@microsoft/signalr": "^8.0.7",
     "jest-editor-support": "*",
+    "microsoft-cognitiveservices-speech-sdk": "^1.42.0",
     "run-script-os": "*",
     "rxjs": "~7.8.0",
     "tslib": "^2.3.0",
