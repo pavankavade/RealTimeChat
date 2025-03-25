@@ -7,13 +7,15 @@ import { AppComponent } from './app.component';
 import { ChatComponent } from './chat/chat.component';
 import { AvatarComponent } from './avatar/avatar.component';
 import { AvatarRealtimeComponent } from './avatar-realtime/avatar-realtime.component';
+import { AvatarRealtimeV2Component } from './avatar-realtime-v2/avatar-realtime-v2.component';
 
 @NgModule({
   declarations: [
     AppComponent,
     ChatComponent,
     AvatarComponent,
-    AvatarRealtimeComponent
+    AvatarRealtimeComponent,
+    AvatarRealtimeV2Component
   ],
   imports: [
     BrowserModule, HttpClientModule,
