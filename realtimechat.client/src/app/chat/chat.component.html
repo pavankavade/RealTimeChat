@@ -1,36 +1,74 @@
-<!-- chat.component.html -->
-<div class="chat-container">
-  <h2>Real-Time Chat</h2>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Real-Time Chat</title>
 
-  <div class="chat-connection">
-    <button (click)="connect()" [disabled]="hubConnection?.state === 'Connected'">
-      Connect to Chat
-    </button>
-    <span class="status" [ngClass]="{ connected: hubConnection?.state === 'Connected', disconnected: hubConnection?.state !== 'Connected' }">
-      Status: {{ hubConnection?.state || 'Disconnected' }}
-    </span>
-    <!-- Mic toggle button. Disable if not connected. -->
-    <button (click)="toggleMic()" [disabled]="hubConnection?.state !== 'Connected'" class="mic-button">
-      <i class="material-icons">{{ micEnabled ? 'mic_off' : 'mic' }}</i>
-    </button>
-  </div>
+</head>
+<body>
 
-  <div class="messages-container">
-    <div class="message" *ngFor="let msg of messages">
-      <span class="timestamp">[{{ msg.timestamp }}]</span>
-      <span class="user">{{ msg.user }}:</span>
-      <span class="message-text">{{ msg.message }}</span>
+  <div class="container">
+
+    <!-- Main Chat Section -->
+    <div class="chat-section">
+      <!-- Page Title -->
+      <h2 class="page-title">Real-Time Chat</h2>
+
+      <!-- Chat Box with Custom Scrollbar -->
+      <div id="chatContainer" class="chat-box">
+        <!-- Repeat for each message -->
+        <div class="message-row" ng-class="{'user': msg.user === 'User'}" *ngFor="let msg of messages">
+          <div class="chat-bubble" ng-class="msg.user === 'User' ? 'user' : 'bot'">
+            <div class="message-text">{{ msg.message }}</div>
+            <div class="message-timestamp">{{ msg.timestamp }}</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Chat Input (commented out as in original) -->
+      <!--
+      <div class="chat-input" style="display: flex; align-items: center; border: 1px solid #d2d6dc; border-radius: 0.5rem; padding: 0.5rem; background: #fff; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-top: 1rem;">
+        <textarea [(ngModel)]="newMessage" placeholder="Type your message..."
+                  style="flex-grow: 1; padding: 0.5rem; color: #4a5568; border: none; resize: none; outline: none;"
+                  rows="1"></textarea>
+        <button (click)="sendMessage()"
+                style="margin-left: 0.5rem; background-color: #2563eb; color: #fff; padding: 0.5rem 1rem; border: none; border-radius: 0.5rem; cursor: pointer; transition: background-color 0.2s;"
+                [disabled]="!newMessage.trim()">
+          Send
+        </button>
+      </div>
+      -->
     </div>
+
+    <!-- Right Panel with Buttons -->
+    <div class="right-panel">
+
+      <!-- Avatar (Bot Camera) with Lip-Synced Visemes -->
+      <div class="avatar-container">
+        <img src="assets/real_man.jpeg" alt="Avatar">
+        <img [src]="currentVisemeImage" alt="Viseme Image" class="viseme-image">
+      </div>
+
+      <!-- Main Controls Section -->
+      <div class="controls-section">
+        <div class="timer-display-container">
+          <span class="label">Chat Timer</span>
+          <span class="time">{{ timerDisplay }}</span>
+        </div>
+        <button class="mic-button" (click)="toggleMic()">
+          <i class="material-icons align-middle">{{ micEnabled ? 'Mic Off' : 'Mic' }}</i>
+        </button>
+      </div>
+
+      <!-- Connection Status -->
+      <div class="connection-status">
+        <span ng-class="{'status-connected': hubConnection?.state === 'Connected', 'status-disconnected': hubConnection?.state !== 'Connected'}">
+          Status: {{ hubConnection?.state || 'Disconnected' }}
+        </span>
+      </div>
+    </div>
+
   </div>
 
-  <div class="input-container">
-    <input [(ngModel)]="newMessage"
-           (keyup.enter)="sendMessage()"
-           placeholder="Type a message..."
-           [disabled]="hubConnection?.state !== 'Connected'">
-    <button (click)="sendMessage()"
-            [disabled]="!newMessage.trim() || hubConnection?.state !== 'Connected'">
-      Send
-    </button>
-  </div>
-</div>
+</body>
+</html>
