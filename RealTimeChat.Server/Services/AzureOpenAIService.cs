@@ -320,53 +320,47 @@ namespace RealTimeChat.Services
 
                         {
 
-                            case "response.audio.delta":
+                            //case "response.audio.delta":
 
-                                if (root.TryGetProperty("delta", out var audioElement))
+                            //    if (root.TryGetProperty("delta", out var audioElement))
 
-                                {
+                            //    {
 
-                                    var audioContent = audioElement.GetString();
+                            //        var audioContent = audioElement.GetString();
 
-                                    if (!string.IsNullOrEmpty(audioContent))
+                            //        if (!string.IsNullOrEmpty(audioContent))
 
-                                        await onChunkReceived(audioContent, "system-audio");
+                            //            await onChunkReceived(audioContent, "system-audio");
 
-                                }
+                            //    }
 
-                                break;
+                            //    break;
 
-                            case "response.audio_transcript.delta":
-
+                            case "response.audio_transcript.delta": // AI's text (delta)
                                 if (root.TryGetProperty("delta", out var transcriptElement))
-
                                 {
-
                                     var textContent = transcriptElement.GetString();
-
                                     if (!string.IsNullOrEmpty(textContent))
-
-                                        textBuffer.Append(textContent + " ");
-
-                                    await onChunkReceived(textContent, "system-text-delta"); // Send delta for buffering 
-
+                                        // No change needed here - send as delta
+                                        await onChunkReceived(textContent, "system-text-delta");
                                 }
-
                                 break;
 
                             case "response.done":
 
-                                if (textBuffer.Length > 0)
+                                await onChunkReceived("", "system-text-complete"); // Send empty msg just to signal completion maybe? Or rely on client buffering. Let's keep sending complete signal.
 
-                                {
+                                //if (textBuffer.Length > 0)
 
-                                    var fullMessage = textBuffer.ToString().Trim();
+                                //{
 
-                                    await onChunkReceived(fullMessage, "system-text-complete");
+                                //    var fullMessage = textBuffer.ToString().Trim();
 
-                                    textBuffer.Clear(); // Reset buffer 
+                                //    await onChunkReceived(fullMessage, "system-text-complete");
 
-                                }
+                                //    textBuffer.Clear(); // Reset buffer 
+
+                                //}
 
                                 break;
 

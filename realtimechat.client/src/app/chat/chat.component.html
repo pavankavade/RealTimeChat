@@ -45,8 +45,13 @@
 
       <!-- Avatar (Bot Camera) with Lip-Synced Visemes -->
       <div class="avatar-container">
-        <img src="assets/real_man.jpeg" alt="Avatar">
-        <img [src]="currentVisemeImage" alt="Viseme Image" class="viseme-image">
+        <!-- This div will host the video stream -->
+        <div id="remoteVideo" style="width: 100%; height: 100%; background-color: #333;">
+          <!-- Optional: Placeholder content while connecting -->
+          <span *ngIf="!isAvatarConnected" style="color: white; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);">Connecting Avatar...</span>
+        </div>
+        <!-- You might want an <audio> element too, though the SDK often handles it -->
+        <!-- <audio id="remoteAudio" autoplay></audio> -->
       </div>
 
       <!-- Main Controls Section -->
